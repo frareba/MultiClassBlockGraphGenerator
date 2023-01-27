@@ -5,10 +5,10 @@ import os
 
 
 '''
-Returns two non-isorphic graphs h1,h2 of size n which are each generated from a tree 
+Returns numc non-isorphic graphs of size n which are each generated from a tree 
 by appending a single edge, such that their sets of vertex degrees are equivalent.
 '''
-def blockgraph_layouts(n):
+def blockgraph_layouts(n,Nc):
 
     while True:
         # generate random tree g of size n
@@ -20,32 +20,42 @@ def blockgraph_layouts(n):
             if d in deg_grouped: deg_grouped[d].append(i)
             else: deg_grouped[d] = [i]
 
-        # find two vertex pairs (v1,v2) and (u1,u2) with d(v1)==d(u1) and d(v2)==d(u2)
-        delete = [key for key in deg_grouped if len(deg_grouped[key])<2]
+        # find vertex nC pairs (v1,v2) and (u1,u2) with d(v1)==d(u1) and d(v2)==d(u2)
+        delete = [key for key in deg_grouped if len(deg_grouped[key])<Nc]
         for key in delete: del deg_grouped[key]
         if not deg_grouped: continue
         deg1 = rd.choice(list(deg_grouped.values()))
-        v1,u1 = rd.sample(deg1, 2)
-        deg1.remove(v1)
-        deg1.remove(u1)
-        delete = [key for key in deg_grouped if len(deg_grouped[key])<2]
+        v1 = rd.sample(deg1, Nc)
+        res = [i for i in deg1 if i not in v1]
+        deg1 = res
+        
+        delete = [key for key in deg_grouped if len(deg_grouped[key])<Nc]
         for key in delete: del deg_grouped[key]
         if not deg_grouped: continue
         deg2 = rd.choice(list(deg_grouped.values()))
-        v2,u2 = rd.sample(deg2, 2)
+        v2 = rd.sample(deg2, Nc)
 
         # check whether extra edges are already contained in g
-        if (v1,v2) in g.edges: continue
-        if (u1,u2) in g.edges: continue
+        contained = False
+        for i in range(Nc):
+        	if v1[i]==v2[i] or (v1[i],v2[i]) in g.edges: contained = True
+        if contained: continue
 
         # generate networkx graphs
-        h1 = g.copy()
-        h1.add_edge(v1,v2)
-        h2 = g.copy()
-        h2.add_edge(u1,u2)
-
+        bgraphs = []
+        for i in range(Nc):
+        	h = g.copy()
+        	h.add_edge(v1[i],v2[i])
+        	bgraphs.append(h)
+        
         # return graphs only if they are non-isomorphic
-        if not nx.is_isomorphic(h1,h2): return h1,h2
+        iso = False
+        for i in range(Nc):
+        	for j in range(i+1, Nc):
+        		if nx.is_isomorphic(bgraphs[i],bgraphs[j]): iso = True
+        if iso: continue
+        
+        return bgraphs
 
 
 '''
@@ -91,7 +101,7 @@ def blockgraph(g, c, p, m):
 '''
 Writes graphs to file following TU Dortmund format.
 '''
-def write_graphs(graphs, file_name):
+def write_graphs(graphs, Nc, file_name):
 
     if not os.path.exists(file_name):
         os.mkdir(file_name)
@@ -99,13 +109,16 @@ def write_graphs(graphs, file_name):
     f_A = open(file_name+'/'+file_name+'_A.txt', 'w')
     f_gi = open(file_name+'/'+file_name+'_graph_indicator.txt', 'w')
     f_gl = open(file_name+'/'+file_name+'_graph_labels.txt', 'w')
+    f_nl = open(file_name+'/'+file_name+'_node_labels.txt', 'w')
     f_A.close()
     f_gi.close()
     f_gl.close()
+    f_nl.close()
 
     f_A = open(file_name+'/'+file_name+'_A.txt', 'a')
     f_gi = open(file_name+'/'+file_name+'_graph_indicator.txt', 'a')
     f_gl = open(file_name+'/'+file_name+'_graph_labels.txt', 'a')
+    f_nl = open(file_name+'/'+file_name+'_node_labels.txt', 'a')
 
     offset = 1
     for i,g in enumerate(graphs):
@@ -114,12 +127,14 @@ def write_graphs(graphs, file_name):
             f_A.write(str(offset+u)+', '+str(offset+v)+'\n')
         for v in g.nodes:   
             f_gi.write(str(i+1)+'\n')
-        f_gl.write(str(i%2)+'\n')
+            f_nl.write('0\n')
+        f_gl.write(str(i%Nc)+'\n')
         offset += len(g.nodes)
 
     f_A.close()
     f_gi.close()
     f_gl.close()
+    f_nl.close()
 
 
 if __name__ == "__main__":
@@ -129,6 +144,10 @@ if __name__ == "__main__":
                         type=str, 
                         required=True, 
                         help='Name of output file(s)')
+    parser.add_argument('--Nc', 
+                        type=int, 
+                        required=True, 
+                        help='Number of classes')
     parser.add_argument('--N', 
                         type=int, 
                         required=True, 
@@ -157,6 +176,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     file = args.name
+    Nc = args.Nc
     N = args.N
     n = args.n
     c = args.c
@@ -165,13 +185,24 @@ if __name__ == "__main__":
     if args.seed: rd.seed(args.seed)
 
     # generate underlying block graph structures
-    g,h = blockgraph_layouts(n)
+    bgraphs = blockgraph_layouts(n,Nc)
 
+    print("underlying block graphs generated")
     # generate N blockgraphs for each structure
     graphs = []
     for _ in range(N):
-        graphs.append(blockgraph(g, c, p, m))
-        graphs.append(blockgraph(h, c, p, m))
-
+    	for g in bgraphs:
+    		graphs.append(blockgraph(g, c, p, m))
+    print("graphs generated")
     # write graphs to file
-    write_graphs(graphs, file)
+    write_graphs(graphs, Nc, file)
+    # write parameters
+    f_p = open(file+'/'+file+'_para.txt', 'w')
+    f_p.write("Name 				"+ file)
+    f_p.write("\nNumber of classes 		"+ str(Nc))
+    f_p.write("\nNumber of graphs per class 	"+ str(N))
+    f_p.write("\nNumber of blocks 		"+ str(n))
+    f_p.write("\nSize of blocks 		"+ str(c))
+    f_p.write("\nEdge probability 		"+ str(p))
+    f_p.write("\nNumber of noise edges 	"+ str(m))
+    f_p.close()
