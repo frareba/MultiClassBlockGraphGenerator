@@ -45,7 +45,7 @@ The figure depicts an example of two such generated graphs.
 underlying structure contains 3 vertices. Two vertices are connected by an edge with some probability p if
 they belong to the same block or their blocks are connected in the underlying structure (depicted by solid
 black lines). Furthermore, both graphs additionally contain mx = 4 noise edges (depicted by dashed red
-lines)](blockgraphs.png)
+lines)](blockgraphs.png?)
 
 All datasets considered in the evaluation of (Schulz et al., 2022) were created starting with a random tree of size $16$ which was extended by a single random edge resulting in graphs $G_1,G_2$.
 For each classification task we generated $200$ random graphs for each $G \in G_1,G_2$. 
